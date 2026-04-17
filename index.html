@@ -497,7 +497,7 @@ function renderMain(){
   tips.appendChild(h("h4",{style:{margin:"0 0 8px",color:"var(--gold)",fontSize:"14px"}},"使用說明"));
   [["匯入資料：","點「匯入詞綴資料」貼上 JSON，資料存在 localStorage 中，下次自動載入。綠點表示已有資料。"],
    ["選詞綴：","點詞綴 → 彈出 T 階選單 → 選階級 → 加到物品 A/B → 勾選目標詞綴 → 查看機率"],
-   ["非自然詞綴：","精髓強制 roll 的非原生詞綴，佔池子但不會被選取，可提高目標詞綴保留率"],
+   ["非自然詞綴(NNN)：","非原生詞綴，一次合成只會出現一條；可利用大量NNN詞綴提高合成池中詞綴數量"],
    ["來源篩選：","按來源（基本/塑界者等）篩選詞綴列表"]
   ].forEach(([b,t])=>tips.appendChild(h("p",{style:{margin:"0 0 5px"}},h("strong",{style:{color:"var(--t1)"}},b),t)));
   app.appendChild(tips);
