@@ -383,39 +383,50 @@ function renderMain(){
     dc.appendChild(br);app.appendChild(dc);
   }
 
-  if(res){
-    const p=res.prob,pct=p>=1e-4?(p*100).toFixed(2):"<0.01",att=res.exp===Infinity?"∞":res.exp.toFixed(1);
-    let col="#e74c3c";if(p>=.3)col="#2ecc71";else if(p>=.1)col="#f1c40f";else if(p>=.03)col="#e67e22";
-    const rc=h("div",{className:"card",style:{borderColor:col+"33"}});
-    rc.appendChild(h("div",{style:{textAlign:"center",marginBottom:"14px"}},
-      h("div",{style:{fontSize:"12px",color:"var(--t3)",letterSpacing:"2px",textTransform:"uppercase"}},"成功機率"),
-      h("div",{className:"mono",style:{fontSize:"48px",fontWeight:"800",color:col,lineHeight:"1",textShadow:"0 0 30px "+col+"33"}},pct+"%"),
-      h("div",{style:{fontSize:"14px",color:"var(--t3)",marginTop:"6px"}},"期望嘗試：",h("span",{className:"mono",style:{fontWeight:"700",color:"var(--t1)"}},att)," 次"),
-    ));
-    const grid=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"8px",marginBottom:"14px",padding:"12px",background:"var(--bg)",borderRadius:"6px"}});
-    [["詞綴選取",(res.raw*100).toFixed(2)+"%"],["底材","×"+res.bf],["排他","×"+res.ep.toFixed(2)],["Doubling",res.dblP+"P/"+res.dblS+"S"],["非自然",res.gP+"P/"+res.gS+"S"]].forEach(([l,v])=>{
-      grid.appendChild(h("div",{style:{textAlign:"center"}},h("div",{style:{fontSize:"11px",color:"var(--t3)"}},l),h("div",{className:"mono",style:{fontSize:"15px",fontWeight:"700"}},v)));
-    });
-    rc.appendChild(grid);
-    [{d:res.distP,l:"前綴分布（池"+res.tP+" 可選"+res.selP+"）",n:res.dP},{d:res.distS,l:"後綴分布（池"+res.tS+" 可選"+res.selS+"）",n:res.dS}].forEach(({d,l,n})=>{
-      rc.appendChild(h("div",{style:{marginBottom:"8px"}},
-        h("div",{style:{fontSize:"12px",color:"var(--t3)",marginBottom:"3px"}},l),
-        (()=>{const bar=h("div",{className:"dist-bar"});
-          const cols=["#605848","#d4a84b","#7ad4a0","#f6c"];
-          d.forEach((prob,i)=>{if(prob>0){const seg=h("div",{className:"dist-seg",style:{width:(prob*100)+"%",background:cols[i]+(i>=n?"cc":"33"),color:i>=n?"#1a1208":"var(--t3)",fontWeight:i>=n?"700":"400",fontFamily:"'Fira Code',monospace"}});
-            if(prob>=.05)seg.textContent=i+"條 "+(prob*100).toFixed(0)+"%";bar.appendChild(seg);}});return bar;})()
+  {
+    const rc=h("div",{className:"card",style:{borderColor:res?"var(--border)":"var(--border)"}});
+    if(!res){
+      // Empty state - fixed height placeholder
+      rc.appendChild(h("div",{style:{textAlign:"center",padding:"20px 0"}},
+        h("div",{style:{fontSize:"12px",color:"var(--t3)",letterSpacing:"2px",textTransform:"uppercase",marginBottom:"8px"}},"成功機率"),
+        h("div",{className:"mono",style:{fontSize:"48px",fontWeight:"800",color:"var(--t4)",lineHeight:"1"}}},"—"),
+        h("div",{style:{fontSize:"13px",color:"var(--t4)",marginTop:"6px"}},"請先添加詞綴並勾選目標"),
       ));
-    });
-    if(res.bd.length){
-      const bd=h("div",{style:{marginTop:"10px",fontSize:"12px",fontFamily:"'Fira Code',monospace",color:"var(--t3)"}});
-      bd.appendChild(h("div",{style:{marginBottom:"5px",fontFamily:"'Crimson Text',serif",fontSize:"13px",color:"var(--t2)"}},"機率分解（前三高）"));
-      res.bd.slice(0,3).forEach((b,i)=>{
-        bd.appendChild(h("div",{style:{display:"flex",justifyContent:"space-between",padding:"3px 8px",background:i%2===0?"var(--bg)":"transparent",borderRadius:"3px"}},
-          h("span",{},b.fp+"P/"+b.fs+"S"),
-          h("span",{},"分布"+(b.pc*100).toFixed(1)+"% × 選取"+(b.s*100).toFixed(1)+"% = ",h("span",{style:{color:"var(--t1)",fontWeight:"700"}},(b.c*100).toFixed(2)+"%")),
+    }else{
+      const p=res.prob,pct=p>=1e-4?(p*100).toFixed(2):"<0.01",att=res.exp===Infinity?"∞":res.exp.toFixed(1);
+      let col="#e74c3c";if(p>=.3)col="#2ecc71";else if(p>=.1)col="#f1c40f";else if(p>=.03)col="#e67e22";
+      rc.style.borderColor=col+"33";
+      rc.appendChild(h("div",{style:{textAlign:"center",marginBottom:"14px"}},
+        h("div",{style:{fontSize:"12px",color:"var(--t3)",letterSpacing:"2px",textTransform:"uppercase"}},"成功機率"),
+        h("div",{className:"mono",style:{fontSize:"48px",fontWeight:"800",color:col,lineHeight:"1",textShadow:"0 0 30px "+col+"33"}},pct+"%"),
+        h("div",{style:{fontSize:"14px",color:"var(--t3)",marginTop:"6px"}},"期望嘗試：",h("span",{className:"mono",style:{fontWeight:"700",color:"var(--t1)"}},att)," 次"),
+      ));
+      const grid=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"8px",marginBottom:"14px",padding:"12px",background:"var(--bg)",borderRadius:"6px"}});
+      [["詞綴選取",(res.raw*100).toFixed(2)+"%"],["底材","×"+res.bf],["排他","×"+res.ep.toFixed(2)],["Doubling",res.dblP+"P/"+res.dblS+"S"],["非自然",res.gP+"P/"+res.gS+"S"]].forEach(([l,v])=>{
+        grid.appendChild(h("div",{style:{textAlign:"center"}},h("div",{style:{fontSize:"11px",color:"var(--t3)"}},l),h("div",{className:"mono",style:{fontSize:"15px",fontWeight:"700"}},v)));
+      });
+      rc.appendChild(grid);
+      [{d:res.distP,l:"前綴分布（池"+res.tP+" 可選"+res.selP+"）",n:res.dP},{d:res.distS,l:"後綴分布（池"+res.tS+" 可選"+res.selS+"）",n:res.dS}].forEach(({d,l,n})=>{
+        rc.appendChild(h("div",{style:{marginBottom:"8px"}},
+          h("div",{style:{fontSize:"12px",color:"var(--t3)",marginBottom:"3px"}},l),
+          (()=>{const bar=h("div",{className:"dist-bar"});
+            const cols=["#605848","#d4a84b","#7ad4a0","#f6c"];
+            d.forEach((prob,i)=>{if(prob>0){const seg=h("div",{className:"dist-seg",style:{width:(prob*100)+"%",background:cols[i]+(i>=n?"cc":"33"),color:i>=n?"#1a1208":"var(--t3)",fontWeight:i>=n?"700":"400",fontFamily:"'Fira Code',monospace"}});
+              if(prob>=.05)seg.textContent=i+"條 "+(prob*100).toFixed(0)+"%";bar.appendChild(seg);}});return bar;})()
         ));
-      });rc.appendChild(bd);
-    }app.appendChild(rc);
+      });
+      if(res.bd.length){
+        const bd=h("div",{style:{marginTop:"10px",fontSize:"12px",fontFamily:"'Fira Code',monospace",color:"var(--t3)"}});
+        bd.appendChild(h("div",{style:{marginBottom:"5px",fontFamily:"'Crimson Text',serif",fontSize:"13px",color:"var(--t2)"}},"機率分解（前三高）"));
+        res.bd.slice(0,3).forEach((b,i)=>{
+          bd.appendChild(h("div",{style:{display:"flex",justifyContent:"space-between",padding:"3px 8px",background:i%2===0?"var(--bg)":"transparent",borderRadius:"3px"}},
+            h("span",{},b.fp+"P/"+b.fs+"S"),
+            h("span",{},"分布"+(b.pc*100).toFixed(1)+"% × 選取"+(b.s*100).toFixed(1)+"% = ",h("span",{style:{color:"var(--t1)",fontWeight:"700"}},(b.c*100).toFixed(2)+"%")),
+          ));
+        });rc.appendChild(bd);
+      }
+    }
+    app.appendChild(rc);
   }
 
   const mp=h("div",{className:"card",style:{marginTop:"16px"}});
