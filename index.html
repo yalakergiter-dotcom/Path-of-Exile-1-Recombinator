@@ -119,7 +119,7 @@ const state={
   showCustom:false,cN:"",cT:"prefix",cG:"",cE:false,cNn:false,
 };
 
-function setState(patch){Object.assign(state,patch);render();}
+function setState(patch){Object.assign(state,patch);const sy=window.scrollY;render();window.scrollTo(0,sy);}
 function resetItems(){setState({mA:[],mB:[],des:new Set(),ghost:new Set()});}
 
 // ═══════════════════════════════════════════════════════════
@@ -423,32 +423,98 @@ function render(){
   }else if(s.loading){
     mpCard.appendChild(h("div",{style:{textAlign:"center",padding:"30px",color:"var(--t3)",fontSize:"13px"}},"載入中..."));
   }else{
-    const list=h("div",{style:{maxHeight:"400px",overflowY:"auto",paddingRight:"4px"}});
-    filtered.forEach(mod=>{
-      const inA=s.mA.some(m=>m.g===mod.g&&m.src===mod.src),inB=s.mB.some(m=>m.g===mod.g&&m.src===mod.src);
-      const srcCol=SRC_COL[mod.src]||"var(--t3)";
-      const row=h("div",{className:"mod-row",onClick:()=>{
-        const arr=s.tgt==="A"?s.mA:s.mB;
-        if(arr.filter(m=>m.t==="prefix").length>=3&&mod.t==="prefix")return;
-        if(arr.filter(m=>m.t==="suffix").length>=3&&mod.t==="suffix")return;
-        setState({tierPicker:{mod,side:s.tgt}});
-      }});
-      row.appendChild(h("span",{style:{width:"6px",height:"6px",borderRadius:"50%",flexShrink:"0",background:mod.t==="prefix"?"var(--blue)":"var(--green)"}}));
-      const nameSpan=h("span",{style:{flex:"1",fontSize:"12px"}},mod.n);
-      if(mod.ex)nameSpan.appendChild(h("span",{style:{color:"var(--red)",fontSize:"9px",marginLeft:"4px"}},"排他"));
-      if(mod.nnn)nameSpan.appendChild(h("span",{style:{color:"var(--purple)",fontSize:"9px",marginLeft:"4px"}},"NNN"));
+    // Helper: build a single clickable mod row for a column
+    function makeModRow(mod){
+      if(!mod)return h("div",{style:{height:"26px"}});
+      const inA=s.mA.some(m=>m.id===mod.id),inB=s.mB.some(m=>m.id===mod.id);
+      const isPre=mod.t==="prefix";
+      const dotCol=isPre?"var(--blue)":"var(--green)";
+      const row=h("div",{className:"mod-row",style:{padding:"4px 6px",borderBottom:"1px solid #1a1d25",display:"flex",alignItems:"center",gap:"5px",cursor:"pointer",borderRadius:"3px",minHeight:"26px"},
+        onClick:()=>{
+          const arr=s.tgt==="A"?s.mA:s.mB;
+          if(arr.filter(m=>m.t==="prefix").length>=3&&mod.t==="prefix")return;
+          if(arr.filter(m=>m.t==="suffix").length>=3&&mod.t==="suffix")return;
+          setState({tierPicker:{mod,side:s.tgt}});
+        }});
+      row.appendChild(h("span",{style:{width:"5px",height:"5px",borderRadius:"50%",flexShrink:"0",background:dotCol}}));
+      const nameSpan=h("span",{style:{flex:"1",fontSize:"11px",lineHeight:"1.3"}},mod.n);
+      if(mod.ex)nameSpan.appendChild(h("span",{style:{color:"var(--red)",fontSize:"9px",marginLeft:"3px"}},"排他"));
+      if(mod.nnn)nameSpan.appendChild(h("span",{style:{color:"var(--purple)",fontSize:"9px",marginLeft:"3px"}},"NNN"));
       row.appendChild(nameSpan);
-      row.appendChild(h("span",{style:{fontSize:"9px",color:srcCol,padding:"1px 5px",border:"1px solid "+srcCol+"33",borderRadius:"2px",flexShrink:"0"}},mod.src));
-      const tierRange=mod.tiers?.length?"T"+mod.tiers[0]?.t+"-"+mod.tiers[mod.tiers.length-1]?.t:"";
-      row.appendChild(h("span",{className:"mono",style:{fontSize:"10px",color:"var(--t3)",flexShrink:"0"}},(mod.t==="prefix"?"P":"S")+" "+tierRange));
-      const badges=h("div",{className:"flex gap4",style:{flexShrink:"0"}});
-      if(inA)badges.appendChild(h("span",{style:{fontSize:"9px",padding:"1px 4px",background:"rgba(91,138,191,.2)",color:"var(--blue)",borderRadius:"2px"}},"A"));
-      if(inB)badges.appendChild(h("span",{style:{fontSize:"9px",padding:"1px 4px",background:"rgba(191,91,91,.2)",color:"var(--red)",borderRadius:"2px"}},"B"));
-      row.appendChild(badges);
-      list.appendChild(row);
+      // Tier range
+      const tr=mod.tiers?.length?"T"+mod.tiers[0].t+(mod.tiers.length>1?"-"+mod.tiers[mod.tiers.length-1].t:""):"";
+      row.appendChild(h("span",{className:"mono",style:{fontSize:"9px",color:"var(--t3)",flexShrink:"0"}},tr));
+      // A/B badges
+      if(inA||inB){
+        const b=h("div",{style:{display:"flex",gap:"2px"}});
+        if(inA)b.appendChild(h("span",{style:{fontSize:"8px",padding:"0 3px",background:"rgba(91,138,191,.2)",color:"var(--blue)",borderRadius:"2px"}},"A"));
+        if(inB)b.appendChild(h("span",{style:{fontSize:"8px",padding:"0 3px",background:"rgba(191,91,91,.2)",color:"var(--red)",borderRadius:"2px"}},"B"));
+        row.appendChild(b);
+      }
+      return row;
+    }
+
+    // Group filtered mods by source (preserving SRC_ORDER)
+    const SRC_ORDER_LIST=["基本","塑界者","異界尊師","聖戰軍王","救贖者","狩獵者","總督軍","掘獄","時空穿越","隱匿","工藝台","精髓","獸獵","自定義"];
+    const bySrc={};
+    filtered.forEach(m=>{if(!bySrc[m.src])bySrc[m.src]={prefix:[],suffix:[]};bySrc[m.src][m.t==="prefix"?"prefix":"suffix"].push(m);});
+    const srcGroups=SRC_ORDER_LIST.filter(s=>bySrc[s]);
+
+    const outerList=h("div",{style:{maxHeight:"520px",overflowY:"auto",paddingRight:"4px"}});
+
+    if(srcGroups.length===0&&availMods.length>0){
+      outerList.appendChild(h("div",{style:{textAlign:"center",padding:"20px",color:"var(--t3)",fontSize:"13px"}},"沒有符合的詞綴"));
+    }
+
+    // Check if we're filtering by type (only prefix or only suffix)
+    const onlyPre=s.fT==="prefix", onlySuf=s.fT==="suffix", both=s.fT==="all";
+
+    srcGroups.forEach(src=>{
+      const grp=bySrc[src];
+      const srcCol=SRC_COL[src]||"var(--t3)";
+
+      // Source header
+      const srcHeader=h("div",{style:{padding:"4px 6px",background:"var(--bg)",borderRadius:"3px",marginTop:"4px",
+        borderLeft:"2px solid "+srcCol,display:"flex",alignItems:"center",gap:"6px"}});
+      srcHeader.appendChild(h("span",{style:{fontSize:"11px",fontWeight:"600",color:srcCol}},src));
+      srcHeader.appendChild(h("span",{className:"mono",style:{fontSize:"9px",color:"var(--t3)"}},
+        (grp.prefix.length?"前綴×"+grp.prefix.length:"")+
+        (grp.prefix.length&&grp.suffix.length?" · ":"")+
+        (grp.suffix.length?"後綴×"+grp.suffix.length:"")));
+      outerList.appendChild(srcHeader);
+
+      if(both){
+        // Two-column layout: left=prefix, right=suffix
+        const maxRows=Math.max(grp.prefix.length,grp.suffix.length);
+        if(maxRows===0)return;
+        // Column headers
+        const colHdr=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1px 1fr",gap:"0",marginTop:"1px"}});
+        colHdr.appendChild(h("div",{style:{fontSize:"10px",color:"var(--blue)",padding:"2px 6px",background:"rgba(91,138,191,.06)"}},"◈ 前綴"));
+        colHdr.appendChild(h("div",{style:{background:"var(--border)"}}));
+        colHdr.appendChild(h("div",{style:{fontSize:"10px",color:"var(--green)",padding:"2px 6px",background:"rgba(91,191,122,.06)"}},"◈ 後綴"));
+        outerList.appendChild(colHdr);
+
+        for(let i=0;i<maxRows;i++){
+          const rowWrap=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1px 1fr",gap:"0"}});
+          const pre=grp.prefix[i]||null;
+          const suf=grp.suffix[i]||null;
+          const leftCell=h("div",{style:{background:"rgba(91,138,191,.03)"}});
+          if(pre)leftCell.appendChild(makeModRow(pre));
+          rowWrap.appendChild(leftCell);
+          rowWrap.appendChild(h("div",{style:{background:"var(--border)"}}));
+          const rightCell=h("div",{style:{background:"rgba(91,191,122,.03)"}});
+          if(suf)rightCell.appendChild(makeModRow(suf));
+          rowWrap.appendChild(rightCell);
+          outerList.appendChild(rowWrap);
+        }
+      }else if(onlyPre&&grp.prefix.length){
+        grp.prefix.forEach(m=>outerList.appendChild(makeModRow(m)));
+      }else if(onlySuf&&grp.suffix.length){
+        grp.suffix.forEach(m=>outerList.appendChild(makeModRow(m)));
+      }
     });
-    if(!filtered.length&&availMods.length)list.appendChild(h("div",{style:{textAlign:"center",padding:"20px",color:"var(--t3)",fontSize:"13px"}},"沒有符合的詞綴"));
-    mpCard.appendChild(list);
+
+    mpCard.appendChild(outerList);
   }
   app.appendChild(mpCard);
 
