@@ -195,7 +195,9 @@ function render(){
   const curCat=CATS.find(c=>c.id===s.cat);
   const curSub=curCat?.subs.find(ss=>ss.id===s.sub);
   const availMods=s.modDB?.mods||[];
-  const sources=[...new Set(availMods.map(m=>m.src))];
+  const SRC_ORDER=["基本","塑界者","異界尊師","聖戰軍王","救贖者","狩獵者","總督軍","掘獄","時空穿越","隱匿","工藝台","精髓","獸獵","自定義"];
+  const srcSet=new Set(availMods.map(m=>m.src));
+  const sources=SRC_ORDER.filter(s=>srcSet.has(s));
   let filtered=availMods;
   if(s.fT!=="all")filtered=filtered.filter(m=>m.t===s.fT);
   if(s.fSrc!=="all")filtered=filtered.filter(m=>m.src===s.fSrc);
