@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>POE1 重組器機率計算器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Text:wght@400;600;700&family=Fira+Code:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0c0d11;--bg2:#12141a;--bg3:#181b24;--border:#282c3a;--gold:#c49a6c;--blue:#5b8abf;--red:#bf5b5b;--green:#5bbf7a;--yellow:#bfb35b;--orange:#e67e22;--purple:#9b59b6;--t1:#e8e2d6;--t2:#9e9484;--t3:#605848}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--t1);font-family:'Crimson Text',Georgia,serif;min-height:100vh}
+button{cursor:pointer;font-family:inherit;transition:all .15s}
+button:hover{filter:brightness(1.15)}button:active{transform:scale(.97)}
+input:focus,textarea:focus{outline:1px solid var(--gold)}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.mono{font-family:'Fira Code',monospace}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:4px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:var(--t3);transition:all .15s;user-select:none}
+.tag.on{border-color:var(--gold);background:rgba(196,154,108,.09);color:var(--gold)}
+.tag-blue.on{border-color:var(--blue);background:rgba(91,138,191,.09);color:var(--blue)}
+.tag-red.on{border-color:var(--red);background:rgba(191,91,91,.09);color:var(--red)}
+.tag-green.on{border-color:var(--green);background:rgba(91,191,122,.09);color:var(--green)}
+.flex{display:flex}.wrap{flex-wrap:wrap}.gap4{gap:4px}.gap6{gap:6px}.gap8{gap:8px}.gap10{gap:10px}
+.items-center{align-items:center}.justify-between{justify-content:space-between}
+.text-center{text-align:center}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;animation:fadeIn .15s ease-out}
+.modal{background:var(--bg2);border:1px solid rgba(196,154,108,.27);border-radius:8px;padding:20px;max-width:560px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.tier-btn{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--t1);font-size:12px;width:100%;text-align:left;font-family:'Crimson Text',serif}
+.tier-btn:hover{background:#1e2230;border-color:var(--gold)}
+.mod-row{display:flex;align-items:center;gap:6px;padding:5px 8px;border-bottom:1px solid #1a1d25;cursor:pointer;border-radius:3px;transition:background .1s}
+.mod-row:hover{background:var(--bg3)}
+.dist-bar{display:flex;height:24px;border-radius:3px;overflow:hidden;border:1px solid var(--border)}
+.dist-seg{display:flex;align-items:center;justify-content:center;font-size:10px;border-right:1px solid var(--border)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@media(max-width:600px){.item-slots{flex-direction:column}.item-slot{min-width:auto!important}}
+</style>
+</head>
+<body>
+<div id="app" style="padding:20px 12px;max-width:820px;margin:0 auto"></div>
+<script>
+// ═══════════════════════════════════════════════════════════
+// DATA & CONFIG
+// ═══════════════════════════════════════════════════════════
+const CATS=[
+  {id:"weapon",name:"武器",subs:[
+    {id:"1h",name:"單手武器",items:[
+      {id:"claw",name:"爪"},{id:"dagger",name:"匕首"},{id:"wand",name:"法杖"},{id:"1hsword",name:"單手劍"},
+      {id:"1haxe",name:"單手斧"},{id:"1hmace",name:"單手錘"},{id:"sceptre",name:"權杖"},
+      {id:"runedagger",name:"符紋匕首"},{id:"rapier",name:"細劍"}]},
+    {id:"2h",name:"雙手武器",items:[
+      {id:"bow",name:"弓"},{id:"staff",name:"長杖"},{id:"2hsword",name:"雙手劍"},
+      {id:"2haxe",name:"雙手斧"},{id:"2hmace",name:"雙手錘"},{id:"warstaff",name:"征戰長杖"},{id:"fishrod",name:"魚竿"}]}]},
+  {id:"armour",name:"護甲",subs:[
+    {id:"gloves",name:"手套",items:[{id:"gloves_str",name:"手套(力)"},{id:"gloves_dex",name:"手套(敏)"},{id:"gloves_int",name:"手套(智)"},{id:"gloves_strdex",name:"手套(力敏)"},{id:"gloves_strint",name:"手套(力智)"},{id:"gloves_dexint",name:"手套(敏智)"}]},
+    {id:"boots",name:"鞋子",items:[{id:"boots_str",name:"鞋子(力)"},{id:"boots_dex",name:"鞋子(敏)"},{id:"boots_int",name:"鞋子(智)"},{id:"boots_strdex",name:"鞋子(力敏)"},{id:"boots_strint",name:"鞋子(力智)"},{id:"boots_dexint",name:"鞋子(敏智)"}]},
+    {id:"body",name:"胸甲",items:[{id:"body_str",name:"胸甲(力)"},{id:"body_dex",name:"胸甲(敏)"},{id:"body_int",name:"胸甲(智)"},{id:"body_strdex",name:"胸甲(力敏)"},{id:"body_strint",name:"胸甲(力智)"},{id:"body_dexint",name:"胸甲(敏智)"},{id:"body_strdexint",name:"胸甲(力敏智)"}]},
+    {id:"helmet",name:"頭部",items:[{id:"helm_str",name:"頭部(力)"},{id:"helm_dex",name:"頭部(敏)"},{id:"helm_int",name:"頭部(智)"},{id:"helm_strdex",name:"頭部(力敏)"},{id:"helm_strint",name:"頭部(力智)"},{id:"helm_dexint",name:"頭部(敏智)"}]}]},
+  {id:"offhand",name:"副手",subs:[
+    {id:"offhand_all",name:"副手",items:[{id:"quiver",name:"箭袋"},{id:"shield_str",name:"盾(力)"},{id:"shield_dex",name:"盾(敏)"},{id:"shield_int",name:"盾(智)"},{id:"shield_strdex",name:"盾(力敏)"},{id:"shield_strint",name:"盾(力智)"},{id:"shield_dexint",name:"盾(敏智)"}]}]},
+  {id:"accessory",name:"飾品",subs:[
+    {id:"acc_all",name:"飾品",items:[{id:"amulet",name:"項鍊"},{id:"ring",name:"戒指"},{id:"belt",name:"腰帶"}]}]}
+];
+
+const SRC_COL={"基本":"#a0a0a0","塑界者":"#6688cc","異界尊師":"#888","聖戰軍王":"#d4a017","救贖者":"#7ec8e3",
+  "狩獵者":"#5a8a4a","總督軍":"#c44","掘獄":"#aa7744","時空穿越":"#aa66cc","隱匿":"#6a9","工藝台":"#888",
+  "精髓":"#c4a","獸獵":"#a85","自定義":"#999"};
+
+const DIST={0:[1,0,0,0],1:[.41,.59,0,0],2:[0,.67,.33,0],3:[0,.33,.58,.09],4:[0,.10,.60,.30],5:[0,.03,.47,.50],6:[0,0,.30,.70]};
+
+// ═══════════════════════════════════════════════════════════
+// CALCULATION ENGINE
+// ═══════════════════════════════════════════════════════════
+function C(n,k){if(k<0||k>n)return 0;if(!k||k===n)return 1;let r=1;for(let i=0;i<k;i++)r=r*(n-i)/(i+1);return r;}
+function pSel(d,p,k){if(k<d||p<k||d>p)return 0;return C(p-d,k-d)/C(p,k);}
+
+function calc(mA,mB,desSet,tB,ghostSet){
+  const px=s=>s.filter(m=>m.t==="prefix"),sx=s=>s.filter(m=>m.t==="suffix");
+  const tP=px(mA).length+px(mB).length, tS=sx(mA).length+sx(mB).length;
+  const gCnt=(side,arr,type)=>arr.filter((_,i)=>ghostSet.has(side+"_"+i)&&_.t===type).length;
+  const gP=gCnt("A",mA,"prefix")+gCnt("B",mB,"prefix");
+  const gS=gCnt("A",mA,"suffix")+gCnt("B",mB,"suffix");
+  const selP=tP-gP, selS=tS-gS;
+  const gAP=new Set(px(mA).map(m=>m.g)),gBP=new Set(px(mB).map(m=>m.g));
+  const gAS=new Set(sx(mA).map(m=>m.g)),gBS=new Set(sx(mB).map(m=>m.g));
+  let dblP=0,dblS=0;
+  gAP.forEach(g=>{if(gBP.has(g))dblP++;});gAS.forEach(g=>{if(gBS.has(g))dblS++;});
+  const all=[...mA,...mB],dm=all.filter(m=>desSet.has(m._uid));
+  const dP=new Set(dm.filter(m=>m.t==="prefix").map(m=>m.g)).size;
+  const dS=new Set(dm.filter(m=>m.t==="suffix").map(m=>m.g)).size;
+  const exAll=all.filter(m=>m.ex).length,exDes=dm.filter(m=>m.ex).length;
+  const poolP=Math.min(tP,6),poolS=Math.min(tS,6);
+  const distP=DIST[poolP]||[1,0,0,0],distS=DIST[poolS]||[1,0,0,0];
+  let raw=0;const bd=[];
+  for(let fp=0;fp<=3;fp++)for(let fs=0;fs<=3;fs++){
+    const pc=distP[fp]*distS[fs];if(!pc)continue;
+    const apP=Math.min(fp,selP),apS=Math.min(fs,selS);
+    if(apP<dP||apS<dS)continue;
+    const s=pSel(dP,selP,apP)*pSel(dS,selS,apS);const c=pc*s;raw+=c;
+    if(c>1e-4)bd.push({fp,fs,pc,s,c});
+  }
+  const bf=tB==="any"?1:.5;
+  const ep=exAll>1&&exDes>0?1/exAll:1;
+  const prob=raw*bf*ep;
+  return{prob,raw,bf,ep,exp:prob>0?1/prob:Infinity,distP,distS,tP,tS,selP,selS,gP,gS,dblP,dblS,dP,dS,bd:bd.sort((a,b)=>b.c-a.c)};
+}
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let uid=0;
+const state={
+  cat:"weapon",sub:"1h",item:"claw",
+  mA:[],mB:[],des:new Set(),ghost:new Set(),tB:"any",tgt:"A",
+  srch:"",fT:"all",fSrc:"all",
+  modDB:null,loading:false,loadedItem:null,
+  tierPicker:null,
+  showImport:false,importText:"",
+  showCustom:false,cN:"",cT:"prefix",cG:"",cE:false,cNn:false,
+};
+
+function setState(patch){Object.assign(state,patch);render();}
+function resetItems(){setState({mA:[],mB:[],des:new Set(),ghost:new Set()});}
+
+// ═══════════════════════════════════════════════════════════
+// DATA LOADING
+// ═══════════════════════════════════════════════════════════
+const modCache={};
+
+async function loadMods(itemId){
+  if(modCache[itemId]){setState({modDB:modCache[itemId],loading:false,loadedItem:itemId});return;}
+  setState({loading:true,modDB:null,loadedItem:null});
+  try{
+    const r=await fetch(`data/${itemId}.json`);
+    if(!r.ok)throw new Error(r.status);
+    const d=await r.json();
+    modCache[itemId]=d;
+    setState({modDB:d,loading:false,loadedItem:itemId});
+  }catch{
+    // Try localStorage fallback
+    const stored=localStorage.getItem("poe_recomb_"+itemId);
+    if(stored){
+      const d=JSON.parse(stored);
+      modCache[itemId]=d;
+      setState({modDB:d,loading:false,loadedItem:itemId});
+    }else{
+      setState({modDB:null,loading:false,loadedItem:null});
+    }
+  }
+}
+
+function importData(jsonStr){
+  try{
+    const d=JSON.parse(jsonStr);
+    if(!d.item||!d.mods){alert("格式錯誤：需要 {item, name, mods} 結構");return;}
+    localStorage.setItem("poe_recomb_"+d.item,jsonStr);
+    modCache[d.item]=d;
+    setState({modDB:d,loadedItem:d.item,showImport:false,importText:""});
+    if(d.item===state.item)resetItems();
+    alert(`已匯入「${d.name}」（${d.mods.length} 組詞綴）`);
+  }catch(e){alert("JSON 解析失敗："+e.message);}
+}
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+function h(tag,props,...children){
+  const el=document.createElement(tag);
+  if(props)for(const[k,v]of Object.entries(props)){
+    if(k==="style"&&typeof v==="object"){Object.assign(el.style,v);}
+    else if(k.startsWith("on")){el.addEventListener(k.slice(2).toLowerCase(),v);}
+    else if(k==="className"){el.className=v;}
+    else{el.setAttribute(k,v);}
+  }
+  for(const c of children.flat(Infinity)){
+    if(c==null||c===false)continue;
+    el.appendChild(typeof c==="string"||typeof c==="number"?document.createTextNode(c):c);
+  }
+  return el;
+}
+
+function tagBtn(text,on,color,onClick,extraClass){
+  const cls="tag"+(on?" on":"")+(extraClass?" "+extraClass:"");
+  const b=h("button",{className:cls,onClick,style:on?{borderColor:color,background:color+"18",color:color}:{}},text);
+  return b;
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════
+function render(){
+  const app=document.getElementById("app");
+  app.innerHTML="";
+  const s=state;
+  const curCat=CATS.find(c=>c.id===s.cat);
+  const curSub=curCat?.subs.find(ss=>ss.id===s.sub);
+  const availMods=s.modDB?.mods||[];
+  const sources=[...new Set(availMods.map(m=>m.src))];
+  let filtered=availMods;
+  if(s.fT!=="all")filtered=filtered.filter(m=>m.t===s.fT);
+  if(s.fSrc!=="all")filtered=filtered.filter(m=>m.src===s.fSrc);
+  if(s.srch){const t=s.srch.toLowerCase();filtered=filtered.filter(m=>m.n.toLowerCase().includes(t)||m.g.toLowerCase().includes(t));}
+  const allMods=[...s.mA.map((m,i)=>({...m,side:"A",idx:i})),...s.mB.map((m,i)=>({...m,side:"B",idx:i}))];
+  const res=(s.mA.length||s.mB.length)?calc(s.mA,s.mB,s.des,s.tB,s.ghost):null;
+
+  // ── Header ──
+  app.appendChild(h("div",{style:{textAlign:"center",marginBottom:"20px"}},
+    h("div",{style:{fontSize:"10px",letterSpacing:"4px",color:"var(--t3)",textTransform:"uppercase"}},"Path of Exile 3.28 Mirage"),
+    h("h1",{style:{margin:"4px 0",fontSize:"26px",fontWeight:"700",color:"var(--gold)",letterSpacing:"2px"}},"重組器機率計算器"),
+    h("div",{style:{fontSize:"12px",color:"var(--t3)"}},"Unpredictable Recombination · 詞綴模式"),
+  ));
+
+  // ── Equipment Selector ──
+  const eqCard=h("div",{className:"card"});
+  eqCard.appendChild(h("div",{style:{fontSize:"12px",color:"var(--t2)",marginBottom:"4px"}},"大類"));
+  const catRow=h("div",{className:"flex wrap gap4",style:{marginBottom:"10px"}});
+  CATS.forEach(c=>catRow.appendChild(tagBtn(c.name,s.cat===c.id,"var(--gold)",()=>{setState({cat:c.id,sub:c.subs[0].id,item:c.subs[0].items[0].id});resetItems();loadMods(c.subs[0].items[0].id);})));
+  eqCard.appendChild(catRow);
+
+  if(curCat&&curCat.subs.length>1){
+    eqCard.appendChild(h("div",{style:{fontSize:"12px",color:"var(--t2)",marginBottom:"4px"}},"部位"));
+    const subRow=h("div",{className:"flex wrap gap4",style:{marginBottom:"10px"}});
+    curCat.subs.forEach(ss=>subRow.appendChild(tagBtn(ss.name,s.sub===ss.id,"var(--gold)",()=>{setState({sub:ss.id,item:ss.items[0].id});resetItems();loadMods(ss.items[0].id);})));
+    eqCard.appendChild(subRow);
+  }
+
+  if(curSub){
+    eqCard.appendChild(h("div",{style:{fontSize:"12px",color:"var(--t2)",marginBottom:"4px"}},s.cat==="weapon"?"武器類型":"底材"));
+    const itemRow=h("div",{className:"flex wrap gap4"});
+    curSub.items.forEach(it=>{
+      const hasData=!!modCache[it.id]||!!localStorage.getItem("poe_recomb_"+it.id);
+      const btn=tagBtn(it.name,s.item===it.id,"var(--gold)",()=>{setState({item:it.id});resetItems();loadMods(it.id);});
+      if(hasData)btn.appendChild(h("span",{style:{width:"5px",height:"5px",borderRadius:"50%",background:"var(--green)",marginLeft:"2px"}}));
+      itemRow.appendChild(btn);
+    });
+    eqCard.appendChild(itemRow);
+  }
+
+  // Import row
+  const impRow=h("div",{style:{marginTop:"10px"},className:"flex gap6 items-center wrap"});
+  impRow.appendChild(tagBtn("匯入詞綴資料",s.showImport,"var(--gold)",()=>setState({showImport:!s.showImport})));
+  if(s.modDB)impRow.appendChild(h("span",{style:{fontSize:"11px",color:"var(--green)"}},"✓ "+s.modDB.name+" ("+s.modDB.mods.length+" 組詞綴)"));
+  else if(!s.loading)impRow.appendChild(h("span",{style:{fontSize:"11px",color:"var(--orange)"}},"尚無資料，請匯入或放置 JSON 檔至 data/ 資料夾"));
+  if(s.loading)impRow.appendChild(h("span",{style:{fontSize:"11px",color:"var(--t3)"}},"載入中..."));
+  eqCard.appendChild(impRow);
+  app.appendChild(eqCard);
+
+  // Import panel
+  if(s.showImport){
+    const ipCard=h("div",{className:"card",style:{borderColor:"rgba(196,154,108,.27)"}});
+    ipCard.appendChild(h("div",{style:{fontSize:"13px",color:"var(--gold)",marginBottom:"8px"}},"匯入 JSON 詞綴資料"));
+    ipCard.appendChild(h("div",{style:{fontSize:"11px",color:"var(--t3)",marginBottom:"8px"}},'貼上 JSON 資料（格式：{"item":"claw","name":"爪","mods":[...]}），資料會存在 localStorage 中。'));
+    const ta=h("textarea",{style:{width:"100%",minHeight:"120px",padding:"10px",borderRadius:"4px",border:"1px solid var(--border)",background:"var(--bg)",color:"var(--t1)",fontSize:"12px",fontFamily:"'Fira Code',monospace",resize:"vertical"},placeholder:"在此貼上 JSON..."});
+    ta.value=s.importText;ta.addEventListener("input",e=>state.importText=e.target.value);
+    ipCard.appendChild(ta);
+    const btns=h("div",{className:"flex gap8",style:{marginTop:"8px"}});
+    btns.appendChild(tagBtn("確認匯入",true,"var(--green)",()=>importData(state.importText)));
+    btns.appendChild(tagBtn("取消",false,"var(--t3)",()=>setState({showImport:false,importText:""})));
+    ipCard.appendChild(btns);
+    app.appendChild(ipCard);
+  }
+
+  // ── Items A & B ──
+  const slotsRow=h("div",{className:"flex wrap gap10 item-slots",style:{marginBottom:"12px"}});
+  [["A","var(--blue)",s.mA],["B","var(--red)",s.mB]].forEach(([side,col,mods])=>{
+    const pC=mods.filter(m=>m.t==="prefix").length,sC=mods.filter(m=>m.t==="suffix").length;
+    const slot=h("div",{className:"card",style:{borderTop:"3px solid "+col,flex:"1",minWidth:"240px"}});
+    const header=h("div",{className:"flex justify-between items-center",style:{marginBottom:"8px"}});
+    header.appendChild(h("h3",{style:{fontSize:"15px",color:col,letterSpacing:"1px",textTransform:"uppercase"}},"物品 "+side));
+    header.appendChild(h("span",{className:"mono",style:{fontSize:"11px",color:"var(--t3)"}},pC+"P / "+sC+"S"));
+    slot.appendChild(header);
+    if(!mods.length)slot.appendChild(h("div",{style:{fontSize:"12px",color:"var(--t3)",padding:"12px 0",textAlign:"center"}},"從下方列表點擊添加"));
+    mods.forEach((mod,i)=>{
+      const mc=mod.t==="prefix"?"var(--blue)":"var(--green)";
+      const isG=s.ghost.has(side+"_"+i);
+      const row=h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid var(--border)",opacity:isG?".55":"1"}});
+      const badge=h("span",{style:{display:"inline-flex",alignItems:"center",gap:"3px",padding:"2px 6px",borderRadius:"3px",fontSize:"11px",flexWrap:"wrap",
+        background:isG?"rgba(230,126,34,.07)":"rgba(91,138,191,.07)",border:"1px solid "+(isG?"rgba(230,126,34,.2)":"rgba(91,138,191,.2)"),color:isG?"var(--orange)":mc}});
+      badge.appendChild(h("span",{style:{fontSize:"9px",opacity:".7"}},mod.t==="prefix"?"P":"S"));
+      if(mod.tier!=null)badge.appendChild(h("span",{style:{fontSize:"10px",fontWeight:"700",padding:"0 3px",background:"rgba(196,154,108,.2)",color:"var(--gold)",borderRadius:"2px"}},"T"+mod.tier));
+      badge.appendChild(h("span",{},mod.tierRoll||mod.n));
+      if(mod.src){const sc=SRC_COL[mod.src]||"var(--t3)";badge.appendChild(h("span",{style:{fontSize:"9px",color:sc}},"["+mod.src+"]"));}
+      if(mod.ex)badge.appendChild(h("span",{style:{color:"var(--red)",fontSize:"9px"}},"排他"));
+      if(mod.nnn)badge.appendChild(h("span",{style:{color:"var(--purple)",fontSize:"9px"}},"NNN"));
+      if(isG)badge.appendChild(h("span",{style:{color:"var(--orange)",fontSize:"9px"}},"非自然"));
+      row.appendChild(badge);
+      const btns=h("div",{className:"flex gap4 items-center",style:{flexShrink:"0"}});
+      const gBtn=h("button",{style:{background:"none",border:"1px solid "+(isG?"var(--orange)":"var(--border)"),color:isG?"var(--orange)":"var(--t3)",fontSize:"9px",padding:"2px 4px",borderRadius:"3px"},
+        onClick:()=>{const k=side+"_"+i;const g=new Set(s.ghost);g.has(k)?g.delete(k):g.add(k);setState({ghost:g});}},
+        (isG?"✓ ":"")+"非自然");
+      btns.appendChild(gBtn);
+      btns.appendChild(h("button",{style:{background:"none",border:"none",color:"var(--red)",fontSize:"14px",padding:"2px 4px",opacity:".6"},
+        onClick:()=>{const setter=side==="A"?"mA":"mB";const arr=[...s[setter]];const removed=arr[i];arr.splice(i,1);
+          const d=new Set(s.des);if(removed)d.delete(removed._uid);
+          const g=new Set();s.ghost.forEach(k=>{const[ks,ki]=k.split("_");if(ks!==side)g.add(k);else{const idx=parseInt(ki);if(idx<i)g.add(k);else if(idx>i)g.add(ks+"_"+(idx-1));}});
+          setState({[setter]:arr,des:d,ghost:g});}},"✕"));
+      row.appendChild(btns);
+      slot.appendChild(row);
+    });
+    slotsRow.appendChild(slot);
+  });
+  app.appendChild(slotsRow);
+
+  // ── Desired mods ──
+  if(allMods.length){
+    const desCard=h("div",{className:"card"});
+    desCard.appendChild(h("div",{style:{fontSize:"12px",color:"var(--t2)",marginBottom:"6px"}},"目標詞綴（勾選想保留的）"));
+    const desRow=h("div",{className:"flex wrap gap4"});
+    allMods.forEach(m=>{
+      const on=s.des.has(m._uid);
+      const label=(on?"✓ ":"")+(m.tier!=null?"T"+m.tier+" ":"")+m.n.slice(0,25)+" ("+m.side+")";
+      desRow.appendChild(tagBtn(label,on,"var(--gold)",()=>{const d=new Set(s.des);d.has(m._uid)?d.delete(m._uid):d.add(m._uid);setState({des:d});}));
+    });
+    desCard.appendChild(desRow);
+    const baseRow=h("div",{className:"flex items-center gap8",style:{marginTop:"10px"}});
+    baseRow.appendChild(h("span",{style:{fontSize:"12px",color:"var(--t3)"}},"目標底材："));
+    [["any","任意"],["A","物品 A"],["B","物品 B"]].forEach(([v,l])=>baseRow.appendChild(tagBtn(l,s.tB===v,"var(--gold)",()=>setState({tB:v}))));
+    desCard.appendChild(baseRow);
+    app.appendChild(desCard);
+  }
+
+  // ── Result ──
+  if(res){
+    const p=res.prob,pct=p>=1e-4?(p*100).toFixed(2):"<0.01",att=res.exp===Infinity?"∞":res.exp.toFixed(1);
+    let col="#e74c3c";if(p>=.3)col="#2ecc71";else if(p>=.1)col="#f1c40f";else if(p>=.03)col="#e67e22";
+    const rCard=h("div",{className:"card",style:{borderColor:col+"33"}});
+    rCard.appendChild(h("div",{style:{textAlign:"center",marginBottom:"12px"}},
+      h("div",{style:{fontSize:"11px",color:"var(--t3)",letterSpacing:"2px",textTransform:"uppercase"}},"成功機率"),
+      h("div",{className:"mono",style:{fontSize:"44px",fontWeight:"800",color:col,lineHeight:"1",textShadow:"0 0 30px "+col+"33"}},pct+"%"),
+      h("div",{style:{fontSize:"13px",color:"var(--t3)",marginTop:"6px"}},"期望嘗試：",h("span",{className:"mono",style:{fontWeight:"700",color:"var(--t1)"}},att)," 次"),
+    ));
+    const grid=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"6px",marginBottom:"12px",padding:"10px",background:"var(--bg)",borderRadius:"6px"}});
+    [["詞綴選取",(res.raw*100).toFixed(2)+"%"],["底材","×"+res.bf],["排他","×"+res.ep.toFixed(2)],["Doubling",res.dblP+"P/"+res.dblS+"S"],["非自然",res.gP+"P/"+res.gS+"S"]].forEach(([l,v])=>{
+      grid.appendChild(h("div",{style:{textAlign:"center"}},h("div",{style:{fontSize:"10px",color:"var(--t3)"}},l),h("div",{className:"mono",style:{fontSize:"14px",fontWeight:"700"}},v)));
+    });
+    rCard.appendChild(grid);
+    // Distribution bars
+    [{d:res.distP,l:"前綴分布（池"+res.tP+" 可選"+res.selP+"）",n:res.dP},{d:res.distS,l:"後綴分布（池"+res.tS+" 可選"+res.selS+"）",n:res.dS}].forEach(({d,l,n})=>{
+      rCard.appendChild(h("div",{style:{marginBottom:"8px"}},
+        h("div",{style:{fontSize:"11px",color:"var(--t3)",marginBottom:"3px"}},l),
+        (()=>{const bar=h("div",{className:"dist-bar"});
+          const cols=["#555","#c49a6c","#8fa","#f6c"];
+          d.forEach((prob,i)=>{if(prob>0){
+            const seg=h("div",{className:"dist-seg mono",style:{width:(prob*100)+"%",background:cols[i]+(i>=n?"bb":"33"),color:i>=n?"#000":"var(--t3)",fontWeight:i>=n?"700":"400"}});
+            if(prob>=.05)seg.textContent=i+"條 "+(prob*100).toFixed(0)+"%";
+            bar.appendChild(seg);}});
+          return bar;})()
+      ));
+    });
+    // Breakdown
+    if(res.bd.length){
+      const bdDiv=h("div",{className:"mono",style:{marginTop:"8px",fontSize:"11px",color:"var(--t3)"}});
+      bdDiv.appendChild(h("div",{style:{marginBottom:"4px",fontFamily:"'Crimson Text',serif",color:"var(--t2)"}},"機率分解（前三高）"));
+      res.bd.slice(0,3).forEach((b,i)=>{
+        bdDiv.appendChild(h("div",{style:{display:"flex",justifyContent:"space-between",padding:"3px 6px",background:i%2===0?"var(--bg)":"transparent",borderRadius:"2px"}},
+          h("span",{},b.fp+"P/"+b.fs+"S"),
+          h("span",{},"分布"+(b.pc*100).toFixed(1)+"% × 選取"+(b.s*100).toFixed(1)+"% = ",h("span",{style:{color:"var(--t1)",fontWeight:"700"}},(b.c*100).toFixed(2)+"%")),
+        ));
+      });
+      rCard.appendChild(bdDiv);
+    }
+    app.appendChild(rCard);
+  }
+
+  // ── Mod Picker ──
+  const mpCard=h("div",{className:"card",style:{marginTop:"16px"}});
+  const mpHeader=h("div",{className:"flex justify-between items-center wrap gap6",style:{marginBottom:"10px"}});
+  const mpTitle=h("h3",{style:{fontSize:"15px",color:"var(--gold)",letterSpacing:"1px"}},"詞綴列表");
+  if(s.modDB)mpTitle.appendChild(h("span",{style:{fontSize:"11px",color:"var(--t3)",fontWeight:"400",marginLeft:"8px"}},s.modDB.name+" · "+availMods.length+" 組"));
+  mpHeader.appendChild(mpTitle);
+  const tgtRow=h("div",{className:"flex gap6 items-center"});
+  tgtRow.appendChild(h("span",{style:{fontSize:"12px",color:"var(--t3)"}},"添加至："));
+  ["A","B"].forEach(ss=>tgtRow.appendChild(tagBtn("物品 "+ss,s.tgt===ss,ss==="A"?"var(--blue)":"var(--red)",()=>setState({tgt:ss}))));
+  mpHeader.appendChild(tgtRow);
+  mpCard.appendChild(mpHeader);
+
+  // Filters
+  const filterRow=h("div",{className:"flex wrap gap6",style:{marginBottom:"8px"}});
+  const searchInput=h("input",{type:"text",placeholder:"搜尋詞綴...",style:{flex:"1",minWidth:"120px",padding:"6px 10px",borderRadius:"4px",border:"1px solid var(--border)",background:"var(--bg)",color:"var(--t1)",fontSize:"13px",fontFamily:"'Crimson Text',serif"}});
+  searchInput.value=s.srch;searchInput.addEventListener("input",e=>setState({srch:e.target.value}));
+  filterRow.appendChild(searchInput);
+  [["all","全部"],["prefix","前綴"],["suffix","後綴"]].forEach(([f,l])=>filterRow.appendChild(tagBtn(l,s.fT===f,"var(--gold)",()=>setState({fT:f}))));
+  filterRow.appendChild(tagBtn("+ 自定義",s.showCustom,"var(--gold)",()=>setState({showCustom:!s.showCustom})));
+  mpCard.appendChild(filterRow);
+
+  // Source filter
+  if(sources.length>1){
+    const srcRow=h("div",{className:"flex wrap gap4",style:{marginBottom:"8px"}});
+    srcRow.appendChild(tagBtn("全部來源",s.fSrc==="all","var(--gold)",()=>setState({fSrc:"all"})));
+    sources.forEach(src=>srcRow.appendChild(tagBtn(src,s.fSrc===src,SRC_COL[src]||"var(--gold)",()=>setState({fSrc:src}))));
+    mpCard.appendChild(srcRow);
+  }
+
+  // Custom form
+  if(s.showCustom){
+    const cf=h("div",{style:{padding:"12px",background:"var(--bg)",borderRadius:"6px",marginBottom:"10px",border:"1px solid var(--border)"}});
+    const r1=h("div",{className:"flex wrap gap8",style:{marginBottom:"8px"}});
+    const i1=h("input",{placeholder:"詞綴名稱",style:{flex:"2",minWidth:"140px",padding:"5px 8px",borderRadius:"4px",border:"1px solid var(--border)",background:"var(--bg2)",color:"var(--t1)",fontSize:"12px"}});
+    i1.value=s.cN;i1.addEventListener("input",e=>state.cN=e.target.value);r1.appendChild(i1);
+    const i2=h("input",{placeholder:"Mod Group",style:{flex:"1",minWidth:"100px",padding:"5px 8px",borderRadius:"4px",border:"1px solid var(--border)",background:"var(--bg2)",color:"var(--t1)",fontSize:"12px"}});
+    i2.value=s.cG;i2.addEventListener("input",e=>state.cG=e.target.value);r1.appendChild(i2);
+    cf.appendChild(r1);
+    const r2=h("div",{className:"flex wrap gap6 items-center"});
+    ["prefix","suffix"].forEach(t=>r2.appendChild(tagBtn(t==="prefix"?"前綴":"後綴",s.cT===t,t==="prefix"?"var(--blue)":"var(--green)",()=>setState({cT:t}))));
+    r2.appendChild(tagBtn("排他",s.cE,"var(--red)",()=>setState({cE:!s.cE})));
+    r2.appendChild(tagBtn("NNN",s.cNn,"var(--purple)",()=>setState({cNn:!s.cNn})));
+    r2.appendChild(tagBtn("確認新增",true,"var(--gold)",()=>{
+      if(!state.cN.trim()||!s.modDB)return;
+      const newMod={id:"custom_"+Date.now(),n:state.cN.trim(),t:state.cT,g:state.cG.trim()||"Custom",src:"自定義",ex:state.cE,nnn:state.cNn,tiers:[{t:1,ilvl:0,roll:state.cN.trim(),pfx:"",w:0}]};
+      const updated={...s.modDB,mods:[...s.modDB.mods,newMod]};
+      modCache[s.item]=updated;localStorage.setItem("poe_recomb_"+s.item,JSON.stringify(updated));
+      setState({modDB:updated,showCustom:false,cN:"",cG:"",cE:false,cNn:false});
+    }));
+    cf.appendChild(r2);
+    mpCard.appendChild(cf);
+  }
+
+  // Mod list
+  if(!s.modDB&&!s.loading){
+    mpCard.appendChild(h("div",{style:{textAlign:"center",padding:"30px",color:"var(--orange)",fontSize:"13px"}},"此裝備尚無詞綴資料，請匯入"));
+  }else if(s.loading){
+    mpCard.appendChild(h("div",{style:{textAlign:"center",padding:"30px",color:"var(--t3)",fontSize:"13px"}},"載入中..."));
+  }else{
+    const list=h("div",{style:{maxHeight:"400px",overflowY:"auto",paddingRight:"4px"}});
+    filtered.forEach(mod=>{
+      const inA=s.mA.some(m=>m.g===mod.g&&m.src===mod.src),inB=s.mB.some(m=>m.g===mod.g&&m.src===mod.src);
+      const srcCol=SRC_COL[mod.src]||"var(--t3)";
+      const row=h("div",{className:"mod-row",onClick:()=>{
+        const arr=s.tgt==="A"?s.mA:s.mB;
+        if(arr.filter(m=>m.t==="prefix").length>=3&&mod.t==="prefix")return;
+        if(arr.filter(m=>m.t==="suffix").length>=3&&mod.t==="suffix")return;
+        setState({tierPicker:{mod,side:s.tgt}});
+      }});
+      row.appendChild(h("span",{style:{width:"6px",height:"6px",borderRadius:"50%",flexShrink:"0",background:mod.t==="prefix"?"var(--blue)":"var(--green)"}}));
+      const nameSpan=h("span",{style:{flex:"1",fontSize:"12px"}},mod.n);
+      if(mod.ex)nameSpan.appendChild(h("span",{style:{color:"var(--red)",fontSize:"9px",marginLeft:"4px"}},"排他"));
+      if(mod.nnn)nameSpan.appendChild(h("span",{style:{color:"var(--purple)",fontSize:"9px",marginLeft:"4px"}},"NNN"));
+      row.appendChild(nameSpan);
+      row.appendChild(h("span",{style:{fontSize:"9px",color:srcCol,padding:"1px 5px",border:"1px solid "+srcCol+"33",borderRadius:"2px",flexShrink:"0"}},mod.src));
+      const tierRange=mod.tiers?.length?"T"+mod.tiers[0]?.t+"-"+mod.tiers[mod.tiers.length-1]?.t:"";
+      row.appendChild(h("span",{className:"mono",style:{fontSize:"10px",color:"var(--t3)",flexShrink:"0"}},(mod.t==="prefix"?"P":"S")+" "+tierRange));
+      const badges=h("div",{className:"flex gap4",style:{flexShrink:"0"}});
+      if(inA)badges.appendChild(h("span",{style:{fontSize:"9px",padding:"1px 4px",background:"rgba(91,138,191,.2)",color:"var(--blue)",borderRadius:"2px"}},"A"));
+      if(inB)badges.appendChild(h("span",{style:{fontSize:"9px",padding:"1px 4px",background:"rgba(191,91,91,.2)",color:"var(--red)",borderRadius:"2px"}},"B"));
+      row.appendChild(badges);
+      list.appendChild(row);
+    });
+    if(!filtered.length&&availMods.length)list.appendChild(h("div",{style:{textAlign:"center",padding:"20px",color:"var(--t3)",fontSize:"13px"}},"沒有符合的詞綴"));
+    mpCard.appendChild(list);
+  }
+  app.appendChild(mpCard);
+
+  // ── Table 1 ──
+  const tCard=h("div",{className:"card",style:{marginTop:"8px"}});
+  tCard.appendChild(h("h3",{style:{margin:"0 0 8px",fontSize:"13px",color:"var(--t2)"}},"參考：Table 1 詞綴數量分布"));
+  const table=h("table",{className:"mono",style:{width:"100%",borderCollapse:"collapse",fontSize:"11px"}});
+  const thead=h("tr",{});
+  thead.appendChild(h("th",{style:{textAlign:"left",padding:"4px 6px",borderBottom:"1px solid var(--border)",color:"var(--t3)",fontWeight:"400"}},"池"));
+  [0,1,2,3].forEach(n=>thead.appendChild(h("th",{style:{textAlign:"center",padding:"4px 6px",borderBottom:"1px solid var(--border)",color:"var(--t3)",fontWeight:"400"}},n+"條")));
+  table.appendChild(thead);
+  Object.entries(DIST).forEach(([p,d])=>{
+    const tr=h("tr",{});
+    tr.appendChild(h("td",{style:{padding:"3px 6px",borderBottom:"1px solid #1a1d25",color:"var(--gold)",fontWeight:"600"}},p));
+    d.forEach(v=>tr.appendChild(h("td",{style:{textAlign:"center",padding:"3px 6px",borderBottom:"1px solid #1a1d25",color:v===0?"var(--t3)":v>=.5?"var(--green)":"var(--t1)"}},v===0?"—":(v*100).toFixed(0)+"%")));
+    table.appendChild(tr);
+  });
+  tCard.appendChild(table);
+  tCard.appendChild(h("div",{style:{marginTop:"6px",fontSize:"10px",color:"var(--t3)"}},"資料來源：u/Butsicles 社群測試數據、PoE Wiki"));
+  app.appendChild(tCard);
+
+  // ── Tips ──
+  const tips=h("div",{className:"card",style:{fontSize:"12px",color:"var(--t2)",lineHeight:"1.7"}});
+  tips.appendChild(h("h4",{style:{margin:"0 0 6px",color:"var(--gold)",fontSize:"13px"}},"使用說明"));
+  [["匯入資料：","點「匯入詞綴資料」貼上 JSON，或將 JSON 檔放在 data/ 資料夾中（檔名 = 裝備 ID.json）。綠色圓點表示已有資料。"],
+   ["選詞綴：","點詞綴 → 彈出階級選單 → 選 T 階 → 加到物品 A/B → 勾選目標 → 查看機率"],
+   ["非自然詞綴：","精髓強制 roll 的非原生詞綴，佔池子但不會被選取，可提高目標詞綴保留率"],
+   ["來源篩選：","可按來源（基本/塑界者/異界尊師等）篩選詞綴列表"]
+  ].forEach(([b,t])=>tips.appendChild(h("p",{style:{margin:"0 0 5px"}},h("strong",{style:{color:"var(--t1)"}},b),t)));
+  app.appendChild(tips);
+
+  app.appendChild(h("div",{style:{textAlign:"center",marginTop:"16px",fontSize:"10px",color:"var(--t3)"}},"POE1 3.28 Mirage · 基於社群實驗數據 · 機率為近似值"));
+
+  // ── Tier Picker Modal ──
+  document.querySelectorAll(".tier-modal-overlay").forEach(e=>e.remove());
+  if(s.tierPicker){
+    const mod=s.tierPicker.mod, side=s.tierPicker.side;
+    const overlay=h("div",{className:"overlay tier-modal-overlay",onClick:()=>setState({tierPicker:null})});
+    const modal=h("div",{className:"modal",onClick:e=>e.stopPropagation()});
+    const mHeader=h("div",{className:"flex justify-between",style:{marginBottom:"12px"}});
+    const mInfo=h("div",{});
+    mInfo.appendChild(h("div",{style:{fontSize:"11px",color:"var(--t3)",letterSpacing:"2px",textTransform:"uppercase",marginBottom:"4px"}},"選擇階級"));
+    mInfo.appendChild(h("div",{style:{fontSize:"16px",color:"var(--t1)",fontWeight:"600"}},mod.n));
+    const mMeta=h("div",{className:"flex gap6 items-center",style:{marginTop:"4px"}});
+    mMeta.appendChild(h("span",{style:{fontSize:"11px",color:side==="A"?"var(--blue)":"var(--red)",fontWeight:"600"}},"→ 物品 "+side));
+    mMeta.appendChild(h("span",{style:{fontSize:"11px",color:mod.t==="prefix"?"var(--blue)":"var(--green)"}},mod.t==="prefix"?"前綴":"後綴"));
+    mMeta.appendChild(h("span",{style:{fontSize:"11px",color:SRC_COL[mod.src]||"var(--t3)"}},mod.src));
+    mMeta.appendChild(h("span",{className:"mono",style:{fontSize:"11px",color:"var(--t3)"}},"Pool: "+mod.g));
+    mInfo.appendChild(mMeta);
+    mHeader.appendChild(mInfo);
+    mHeader.appendChild(h("button",{style:{background:"none",border:"none",color:"var(--t3)",fontSize:"20px",padding:"0 4px"},onClick:()=>setState({tierPicker:null})},"✕"));
+    modal.appendChild(mHeader);
+
+    const tierList=h("div",{style:{display:"flex",flexDirection:"column",gap:"3px"}});
+    (mod.tiers||[]).forEach(tr=>{
+      const btn=h("button",{className:"tier-btn",onClick:()=>{
+        const setter=side==="A"?"mA":"mB";
+        const arr=[...s[setter],{...mod,tier:tr.t,tierRoll:tr.roll,tierIlvl:tr.ilvl,_uid:"u"+(uid++)}];
+        setState({[setter]:arr,tierPicker:null});
+      }});
+      btn.appendChild(h("span",{className:"mono",style:{fontWeight:"700",color:"var(--gold)",minWidth:"32px",fontSize:"13px"}},"T"+tr.t));
+      if(tr.pfx)btn.appendChild(h("span",{style:{fontSize:"11px",color:"var(--t3)",minWidth:"60px"}},tr.pfx));
+      btn.appendChild(h("span",{style:{flex:"1",fontSize:"12px"}},tr.roll));
+      btn.appendChild(h("span",{className:"mono",style:{fontSize:"10px",color:"var(--t3)"}},"ilvl "+tr.ilvl));
+      if(tr.w>0)btn.appendChild(h("span",{className:"mono",style:{fontSize:"10px",color:"var(--t3)"}},"w:"+tr.w));
+      tierList.appendChild(btn);
+    });
+    modal.appendChild(tierList);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+  }
+}
+
+// ═══ INIT ═══
+loadMods("claw");
+render();
+</script>
+</body>
+</html>
