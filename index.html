@@ -241,23 +241,25 @@ function renderModList(){
       (grp.prefix.length?"前×"+grp.prefix.length:"")+(grp.prefix.length&&grp.suffix.length?" · ":"")+(grp.suffix.length?"後×"+grp.suffix.length:"")));
     modListDiv.appendChild(sh);
     if(both){
-      const maxR=Math.max(grp.prefix.length,grp.suffix.length);if(!maxR)return;
-      const ch=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1px 1fr",marginTop:"2px"}});
-      ch.appendChild(h("div",{style:{fontSize:"11px",color:"var(--blue)",padding:"3px 8px",background:"rgba(122,170,212,.06)"}},"◈ 前綴"));
-      ch.appendChild(h("div",{style:{background:"var(--border)"}}));
-      ch.appendChild(h("div",{style:{fontSize:"11px",color:"var(--green)",padding:"3px 8px",background:"rgba(122,212,160,.06)"}},"◈ 後綴"));
-      modListDiv.appendChild(ch);
-      for(let i=0;i<maxR;i++){
-        const rw=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1px 1fr"}});
-        const lc=h("div",{style:{background:"rgba(122,170,212,.03)"}});
-        if(grp.prefix[i])lc.appendChild(makeModRow(grp.prefix[i]));
-        rw.appendChild(lc);
-        rw.appendChild(h("div",{style:{background:"var(--border)"}}));
-        const rc=h("div",{style:{background:"rgba(122,212,160,.03)"}});
-        if(grp.suffix[i])rc.appendChild(makeModRow(grp.suffix[i]));
-        rw.appendChild(rc);
-        modListDiv.appendChild(rw);
+      if(!grp.prefix.length&&!grp.suffix.length)return;
+      // Two independent columns - no row alignment
+      const wrap=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1px 1fr",marginTop:"2px"}});
+      // Left: prefix column
+      const leftCol=h("div",{style:{background:"rgba(122,170,212,.03)"}});
+      if(grp.prefix.length){
+        leftCol.appendChild(h("div",{style:{fontSize:"11px",color:"var(--blue)",padding:"3px 8px",background:"rgba(122,170,212,.06)"}},"◈ 前綴"));
+        grp.prefix.forEach(m=>leftCol.appendChild(makeModRow(m)));
       }
+      wrap.appendChild(leftCol);
+      wrap.appendChild(h("div",{style:{background:"var(--border)"}}));
+      // Right: suffix column
+      const rightCol=h("div",{style:{background:"rgba(122,212,160,.03)"}});
+      if(grp.suffix.length){
+        rightCol.appendChild(h("div",{style:{fontSize:"11px",color:"var(--green)",padding:"3px 8px",background:"rgba(122,212,160,.06)"}},"◈ 後綴"));
+        grp.suffix.forEach(m=>rightCol.appendChild(makeModRow(m)));
+      }
+      wrap.appendChild(rightCol);
+      modListDiv.appendChild(wrap);
     }else if(onlyPre)grp.prefix.forEach(m=>modListDiv.appendChild(makeModRow(m)));
     else if(onlySuf)grp.suffix.forEach(m=>modListDiv.appendChild(makeModRow(m)));
   });
