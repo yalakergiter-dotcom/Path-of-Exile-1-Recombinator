@@ -497,8 +497,8 @@ function renderMain(){
   tips.appendChild(h("h4",{style:{margin:"0 0 8px",color:"var(--gold)",fontSize:"14px"}},"使用說明"));
   [["選詞綴：","點詞綴 → 彈出 T 階選單 → 選階級 → 加到物品 A/B → 勾選目標詞綴 → 查看機率"],
    ["非自然詞綴(Non-native, natural modifiers)：","這些詞綴不是掉落限定，但只能出現在特定基底上。如果基底不符合，它們不會轉移。包含：勢力詞綴、防禦詞綴、屬性限定詞綴（如法壓只出現在敏捷底）、破裂詞綴。"],
-   ["排他詞綴（Exclusive Modifiers）：","排他詞綴不能與其他排他詞綴共存於最終物品上，也就是最終合成結果只會出現一條。]
-   ["來源篩選：","按來源（基本/塑界者等）篩選詞綴列表"]
+   ["排他詞綴（Exclusive Modifiers）：","排他詞綴不能與其他排他詞綴共存於最終物品上，也就是最終合成結果只會出現一條。"],
+   ["來源篩選：","按來源（基本/塑界者等）篩選詞綴列表。"]
   ].forEach(([b,t])=>tips.appendChild(h("p",{style:{margin:"0 0 5px"}},h("strong",{style:{color:"var(--t1)"}},b),t)));
   app.appendChild(tips);
   app.appendChild(h("div",{style:{textAlign:"center",marginTop:"16px",marginBottom:"8px",fontSize:"11px",color:"var(--t4)"}},"POE1 3.28 Mirage · 基於社群實驗數據 · 機率為近似值"));
