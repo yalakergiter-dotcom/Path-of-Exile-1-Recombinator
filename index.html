@@ -67,7 +67,7 @@ function pSel(d,p,k){if(k<d||p<k||d>p)return 0;return C(p-d,k-d)/C(p,k);}
 function calcCore(mA,mB,desSet,tB,ghostSet){
   const px=s=>s.filter(m=>m.t==="prefix"),sx=s=>s.filter(m=>m.t==="suffix");
   const tP=px(mA).length+px(mB).length,tS=sx(mA).length+sx(mB).length;
-  const gCnt=(side,arr,type)=>arr.filter((_,i)=>ghostSet.has(side+"_"+i)&&_.t===type).length;
+  const gCnt=(_s,arr,type)=>arr.filter(m=>ghostSet.has(m._uid)&&m.t===type).length;
   const gP=gCnt("A",mA,"prefix")+gCnt("B",mB,"prefix"),gS=gCnt("A",mA,"suffix")+gCnt("B",mB,"suffix");
   const selP=tP-gP,selS=tS-gS;
   const gAP=new Set(px(mA).map(m=>m.g)),gBP=new Set(px(mB).map(m=>m.g));
@@ -262,9 +262,7 @@ function renderModal(){
       const setter=side==="A"?"mA":"mB";
       if(s[setter].some(m=>m.g===mod.g&&m.src===mod.src)){setState({tierPicker:null});return;}
       const arr=[...s[setter],{...mod,tier:tr.t,tierRoll:tr.roll,tierIlvl:tr.ilvl,_uid:"u"+(_uid++)}];
-      // Clear any stale ghost key for the new mod's index
-      const newG=new Set(s.ghost);newG.delete(side+"_"+(arr.length-1));
-      setState({[setter]:arr,ghost:newG,tierPicker:null});
+      setState({[setter]:arr,tierPicker:null});
     }});
     btn.appendChild(h("span",{className:"mono",style:{fontWeight:"700",color:"var(--gold)",minWidth:"36px",fontSize:"14px"}},"T"+tr.t));
     if(tr.pfx)btn.appendChild(h("span",{style:{fontSize:"12px",color:"var(--t3)",minWidth:"70px"}},"「"+tr.pfx+"」"));
@@ -429,7 +427,7 @@ function renderMain(){
     if(!mods.length)sl.appendChild(h("div",{style:{fontSize:"13px",color:"var(--t3)",padding:"14px 0",textAlign:"center"}},"從下方列表點擊添加"));
     mods.forEach((mod,i)=>{
       const mc=mod.t==="prefix"?"var(--blue)":"var(--green)";
-      const isG=s.ghost.has(side+"_"+i);
+      const isG=s.ghost.has(mod._uid);
       const row=h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid var(--border)",opacity:isG?".55":"1"}});
       const badge=h("span",{style:{display:"inline-flex",alignItems:"center",gap:"4px",padding:"3px 8px",borderRadius:"4px",fontSize:"12px",flexWrap:"wrap",lineHeight:"1.3",
         background:isG?"rgba(232,146,58,.07)":"rgba(122,170,212,.07)",border:"1px solid "+(isG?"rgba(232,146,58,.2)":"rgba(122,170,212,.2)"),color:isG?"var(--orange)":mc}});
@@ -449,12 +447,12 @@ function renderMain(){
       row.appendChild(badge);
       const btns=h("div",{style:{display:"flex",gap:"4px",alignItems:"center",flexShrink:"0"}});
       const gb=h("button",{style:{background:"none",border:"1px solid "+(isG?"var(--orange)":"var(--border)"),color:isG?"var(--orange)":"var(--t3)",fontSize:"10px",padding:"2px 5px",borderRadius:"3px"},
-        onClick:()=>{const k=side+"_"+i;const g=new Set(s.ghost);g.has(k)?g.delete(k):g.add(k);setState({ghost:g});}},(isG?"✓ ":"")+"非自然");
+        onClick:()=>{const g=new Set(s.ghost);g.has(mod._uid)?g.delete(mod._uid):g.add(mod._uid);setState({ghost:g});}},(isG?"✓ ":"")+"非自然");
       btns.appendChild(gb);
       btns.appendChild(h("button",{style:{background:"none",border:"none",color:"var(--red)",fontSize:"16px",padding:"2px 5px",opacity:".6"},
         onClick:()=>{const setter=side==="A"?"mA":"mB";const arr=[...s[setter]];const rm=arr[i];arr.splice(i,1);
           const d=new Set(s.des);if(rm)d.delete(rm._uid);
-          const g=new Set();s.ghost.forEach(k=>{const[ks,ki]=k.split("_");if(ks!==side)g.add(k);else{const idx=parseInt(ki);if(idx<i)g.add(k);else if(idx>i)g.add(ks+"_"+(idx-1));}});
+          const g=new Set(s.ghost);if(rm)g.delete(rm._uid);
           setState({[setter]:arr,des:d,ghost:g});}},"✕"));
       row.appendChild(btns);sl.appendChild(row);
     });
