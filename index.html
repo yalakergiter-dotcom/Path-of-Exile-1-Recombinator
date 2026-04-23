@@ -168,6 +168,7 @@ function renderModal(){
   (mod.tiers||[]).forEach(tr=>{
     const btn=h("button",{className:"tier-btn",onClick:()=>{
       const setter=side==="A"?"mA":"mB";
+      if(s[setter].some(m=>m.g===mod.g&&m.src===mod.src)){setState({tierPicker:null});return;}
       const arr=[...s[setter],{...mod,tier:tr.t,tierRoll:tr.roll,tierIlvl:tr.ilvl,_uid:"u"+(_uid++)}];
       setState({[setter]:arr,tierPicker:null});
     }});
@@ -204,6 +205,7 @@ function renderModList(){
       const arr=s.tgt==="A"?s.mA:s.mB;
       if(arr.filter(m=>m.t==="prefix").length>=3&&mod.t==="prefix")return;
       if(arr.filter(m=>m.t==="suffix").length>=3&&mod.t==="suffix")return;
+      if(arr.some(m=>m.g===mod.g&&m.src===mod.src))return;
       setState({tierPicker:{mod,side:s.tgt}});
     }});
     row.appendChild(h("span",{style:{width:"6px",height:"6px",borderRadius:"50%",flexShrink:"0",background:dc}}));
