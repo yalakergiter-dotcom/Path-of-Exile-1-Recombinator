@@ -262,7 +262,9 @@ function renderModal(){
       const setter=side==="A"?"mA":"mB";
       if(s[setter].some(m=>m.g===mod.g&&m.src===mod.src)){setState({tierPicker:null});return;}
       const arr=[...s[setter],{...mod,tier:tr.t,tierRoll:tr.roll,tierIlvl:tr.ilvl,_uid:"u"+(_uid++)}];
-      setState({[setter]:arr,tierPicker:null});
+      // Clear any stale ghost key for the new mod's index
+      const newG=new Set(s.ghost);newG.delete(side+"_"+(arr.length-1));
+      setState({[setter]:arr,ghost:newG,tierPicker:null});
     }});
     btn.appendChild(h("span",{className:"mono",style:{fontWeight:"700",color:"var(--gold)",minWidth:"36px",fontSize:"14px"}},"T"+tr.t));
     if(tr.pfx)btn.appendChild(h("span",{style:{fontSize:"12px",color:"var(--t3)",minWidth:"70px"}},"「"+tr.pfx+"」"));
