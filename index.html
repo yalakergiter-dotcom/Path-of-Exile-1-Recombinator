@@ -64,7 +64,7 @@ const DIST={0:[1,0,0,0],1:[.41,.59,0,0],2:[0,.67,.33,0],3:[0,.33,.58,.09],4:[0,.
 
 function C(n,k){if(k<0||k>n)return 0;if(!k||k===n)return 1;let r=1;for(let i=0;i<k;i++)r=r*(n-i)/(i+1);return r;}
 function pSel(d,p,k){if(k<d||p<k||d>p)return 0;return C(p-d,k-d)/C(p,k);}
-function calc(mA,mB,desSet,tB,ghostSet){
+function calcCore(mA,mB,desSet,tB,ghostSet){
   const px=s=>s.filter(m=>m.t==="prefix"),sx=s=>s.filter(m=>m.t==="suffix");
   const tP=px(mA).length+px(mB).length,tS=sx(mA).length+sx(mB).length;
   const gCnt=(side,arr,type)=>arr.filter((_,i)=>ghostSet.has(side+"_"+i)&&_.t===type).length;
@@ -75,10 +75,60 @@ function calc(mA,mB,desSet,tB,ghostSet){
   let dblP=0,dblS=0;
   gAP.forEach(g=>{if(gBP.has(g))dblP++;});gAS.forEach(g=>{if(gBS.has(g))dblS++;});
   const all=[...mA,...mB],dm=all.filter(m=>desSet.has(m._uid));
-  const dP=new Set(dm.filter(m=>m.t==="prefix").map(m=>m.g)).size,dS=new Set(dm.filter(m=>m.t==="suffix").map(m=>m.g)).size;
-  const exAll=all.filter(m=>m.ex).length,exDes=dm.filter(m=>m.ex).length;
+  const dP=new Set(dm.filter(m=>m.t==="prefix").map(m=>m.g)).size;
+  const dS=new Set(dm.filter(m=>m.t==="suffix").map(m=>m.g)).size;
+  // Exclusive mods: split by prefix/suffix
+  const exP=all.filter(m=>m.ex&&m.t==="prefix").length;
+  const exS=all.filter(m=>m.ex&&m.t==="suffix").length;
+  const exDesP=dm.filter(m=>m.ex&&m.t==="prefix").length;
+  const exDesS=dm.filter(m=>m.ex&&m.t==="suffix").length;
+  const hasEx=exP+exS>0;
   const poolP=Math.min(tP,6),poolS=Math.min(tS,6);
   const distP=DIST[poolP]||[1,0,0,0],distS=DIST[poolS]||[1,0,0,0];
+  // selectable pool after removing exclusive mods (exclusive are non-selectable naturals in most cases,
+  // but here we treat them as selectable - the ep factor handles the 50/50 constraint)
+  const bf=tB==="any"?1:.5;
+
+  // ── Exclusive factor (correct 50/50 model) ──
+  // If there are exclusive mods on both sides: 50% prefix side filled first, 50% suffix side first.
+  // When prefix filled first: one exclusive prefix gets picked (prob = exP/selP if exP>0),
+  //   removing all other exclusives → suffix exclusives gone.
+  // When suffix filled first: one exclusive suffix gets picked (prob = exS/selS if exS>0),
+  //   removing all other exclusives → prefix exclusives gone.
+  // We model ep as the probability that desired exclusive mods survive this process.
+  let ep=1;
+  if(hasEx){
+    if(exP===0&&exS===0){ep=1;}
+    else if(exP>0&&exS===0){
+      // Only prefix exclusives: no cross-side cancellation, normal selection
+      // Each exclusive competes with others, desired exclusive has 1/exP chance if one is picked
+      ep=exDesP>0?1/exP:1;
+    }else if(exP===0&&exS>0){
+      ep=exDesS>0?1/exS:1;
+    }else{
+      // Both sides have exclusives → 50/50 which side triggers first
+      // Case A (50%): prefix filled first → exclusive prefix selected → suffix exclusives removed
+      //   If desired ex is prefix: prob = 1/exP (one of the exP prefix exclusives is picked)
+      //   If desired ex is suffix: prob = 0 (all suffix exclusives removed)
+      // Case B (50%): suffix filled first → exclusive suffix selected → prefix exclusives removed
+      //   If desired ex is suffix: prob = 1/exS
+      //   If desired ex is prefix: prob = 0
+      // If no desired exclusive: ep=1 (we don't care which exclusive fires)
+      if(exDesP===0&&exDesS===0){
+        ep=1; // no desired exclusive, exclusive mods just pad the pool
+      }else if(exDesP>0&&exDesS===0){
+        // Want a prefix exclusive: only survives in Case A (50%)
+        ep=0.5*(1/exP);
+      }else if(exDesP===0&&exDesS>0){
+        // Want a suffix exclusive: only survives in Case B (50%)
+        ep=0.5*(1/exS);
+      }else{
+        // Want both a prefix and suffix exclusive: impossible (only one exclusive survives)
+        ep=0;
+      }
+    }
+  }
+
   let raw=0;const bd=[];
   for(let fp=0;fp<=3;fp++)for(let fs=0;fs<=3;fs++){
     const pc=distP[fp]*distS[fs];if(!pc)continue;
@@ -87,8 +137,50 @@ function calc(mA,mB,desSet,tB,ghostSet){
     const s=pSel(dP,selP,apP)*pSel(dS,selS,apS);const c=pc*s;raw+=c;
     if(c>1e-4)bd.push({fp,fs,pc,s,c});
   }
-  const bf=tB==="any"?1:.5,ep=exAll>1&&exDes>0?1/exAll:1,prob=raw*bf*ep;
-  return{prob,raw,bf,ep,exp:prob>0?1/prob:Infinity,distP,distS,tP,tS,selP,selS,gP,gS,dblP,dblS,dP,dS,bd:bd.sort((a,b)=>b.c-a.c)};
+  const prob=raw*bf*ep;
+  return{prob,raw,bf,ep,exp:prob>0?1/prob:Infinity,distP,distS,tP,tS,selP,selS,gP,gS,dblP,dblS,dP,dS,exP,exS,bd:bd.sort((a,b)=>b.c-a.c)};
+}
+
+// ── Doubling suggestions ──
+function calcDoblingSuggestions(mA,mB,desSet,tB,ghostSet){
+  const base=calcCore(mA,mB,desSet,tB,ghostSet);
+  const all=[...mA,...mB];
+  const candidates=[];
+  // For each mod in the pool that is NOT already doubled and NOT desired (doubling desired mods is different)
+  const desiredGroups=new Set(all.filter(m=>desSet.has(m._uid)).map(m=>m.g+"_"+m.t));
+  const alreadyDoubled=new Set();
+  const gAP=new Set(mA.filter(m=>m.t==="prefix").map(m=>m.g+"_prefix"));
+  const gBP=new Set(mB.filter(m=>m.t==="prefix").map(m=>m.g+"_prefix"));
+  const gAS=new Set(mA.filter(m=>m.t==="suffix").map(m=>m.g+"_suffix"));
+  const gBS=new Set(mB.filter(m=>m.t==="suffix").map(m=>m.g+"_suffix"));
+  gAP.forEach(k=>{if(gBP.has(k))alreadyDoubled.add(k);});
+  gAS.forEach(k=>{if(gBS.has(k))alreadyDoubled.add(k);});
+
+  // Try doubling each non-desired, non-already-doubled, non-exclusive mod
+  const seen=new Set();
+  all.forEach(mod=>{
+    const key=mod.g+"_"+mod.t;
+    if(seen.has(key))return;seen.add(key);
+    if(mod.ex||alreadyDoubled.has(key))return;
+    // Simulate adding this mod to the opposite item
+    const side=mA.some(m=>m.g===mod.g&&m.t===mod.t)?"B":"A";
+    const targetArr=side==="A"?mA:mB;
+    if(targetArr.filter(m=>m.t===mod.t).length>=3)return; // no room
+    const fakeUid="dbl_"+mod.g+"_"+mod.t;
+    const fakeMod={...mod,_uid:fakeUid};
+    const newMA=side==="A"?[...mA,fakeMod]:mA;
+    const newMB=side==="B"?[...mB,fakeMod]:mB;
+    const r=calcCore(newMA,newMB,desSet,tB,ghostSet);
+    const gain=r.prob-base.prob;
+    if(Math.abs(gain)>0.0001)candidates.push({mod,side,gain,newProb:r.prob});
+  });
+  return candidates.sort((a,b)=>b.gain-a.gain).slice(0,5);
+}
+
+function calc(mA,mB,desSet,tB,ghostSet){
+  const r=calcCore(mA,mB,desSet,tB,ghostSet);
+  const dbl=desSet.size>0?calcDoblingSuggestions(mA,mB,desSet,tB,ghostSet):[];
+  return{...r,dblSuggestions:dbl};
 }
 
 let _uid=0;
@@ -427,6 +519,28 @@ function renderMain(){
           ));
         });rc.appendChild(bd);
       }
+      // Doubling suggestions
+      if(res.dblSuggestions&&res.dblSuggestions.length>0){
+        const ds=h("div",{style:{marginTop:"12px",paddingTop:"10px",borderTop:"1px solid var(--border)"}});
+        ds.appendChild(h("div",{style:{fontSize:"13px",color:"var(--t2)",marginBottom:"6px",fontWeight:"600"}},"💡 Doubling 建議"));
+        ds.appendChild(h("div",{style:{fontSize:"11px",color:"var(--t3)",marginBottom:"6px"}},"將以下詞綴同時放在兩件物品上，可提高成功機率："));
+        res.dblSuggestions.forEach((d,i)=>{
+          const gainCol=d.gain>0?"var(--green)":"var(--red)";
+          const row=h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 8px",
+            background:i%2===0?"var(--bg)":"transparent",borderRadius:"3px",gap:"8px"}});
+          const left=h("div",{style:{display:"flex",alignItems:"center",gap:"6px",flex:"1",minWidth:0}});
+          left.appendChild(h("span",{style:{fontSize:"10px",padding:"1px 5px",borderRadius:"2px",flexShrink:"0",
+            background:d.mod.t==="prefix"?"rgba(42,88,136,.15)":"rgba(40,104,64,.15)",
+            color:d.mod.t==="prefix"?"var(--blue)":"var(--green)"}},d.mod.t==="prefix"?"P":"S"));
+          left.appendChild(h("span",{style:{fontSize:"12px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},d.mod.n));
+          left.appendChild(h("span",{style:{fontSize:"10px",color:"var(--t3)",flexShrink:"0"}},"→ 加到物品"+d.side));
+          row.appendChild(left);
+          row.appendChild(h("span",{className:"mono",style:{fontSize:"12px",color:gainCol,fontWeight:"700",flexShrink:"0"}},
+            (d.gain>0?"+":"")+(d.gain*100).toFixed(1)+"%"));
+          ds.appendChild(row);
+        });
+        rc.appendChild(ds);
+      }
     }
     app.appendChild(rc);
   }
@@ -499,7 +613,7 @@ function renderMain(){
   tips.appendChild(h("h4",{style:{margin:"0 0 8px",color:"var(--gold)",fontSize:"14px"}},"使用說明"));
   [["匯入資料：","點「匯入詞綴資料」貼上 JSON，資料存在 localStorage 中，下次自動載入。綠點表示已有資料。"],
    ["選詞綴：","點詞綴 → 彈出 T 階選單 → 選階級 → 加到物品 A/B → 勾選目標詞綴 → 查看機率"],
-   ["非自然詞綴 (Non-native, natural modifiers)：","這些詞綴不是掉落限定，但只能出現在特定基底上。如果基底不符合，它們不會轉移。包含：勢力詞綴、防禦詞綴、屬性限定詞綴（如法壓只出現在敏捷底）、破裂詞綴。"],
+   ["非自然詞綴(Non-native, natural modifiers)：","這些詞綴不是掉落限定，但只能出現在特定基底上。如果基底不符合，它們不會轉移。包含：勢力詞綴、防禦詞綴、屬性限定詞綴（如法壓只出現在敏捷底）、破裂詞綴。"],
    ["排他詞綴（Exclusive Modifiers）：","排他詞綴不能與其他排他詞綴共存於最終物品上，也就是最終合成結果只會出現一條。"],
    ["來源篩選：","按來源（基本/塑界者等）篩選詞綴列表。"]
   ].forEach(([b,t])=>tips.appendChild(h("p",{style:{margin:"0 0 5px"}},h("strong",{style:{color:"var(--t1)"}},b),t)));
